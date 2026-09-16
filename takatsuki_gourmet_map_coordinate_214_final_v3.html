@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高槻駅周辺グルメマップ｜現在地からお店を探す</title>
+    <meta name="description" content="高槻駅周辺のグルメ情報を検索・絞り込み。現在地と店舗の位置関係や距離、Google Mapsのルートを確認できます。">
+    <meta name="theme-color" content="#ff9d00">
+    <style>
+        :root {
+            --primary-color: #ff9d00;
+            --bg-color: #f8f9fa;
+            --text-color: #333;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 1.5rem 1rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 { margin: 0; font-size: 1.5rem; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        /* コントロールパネル（絞り込み・並び替え） */
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        select, input[type="text"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-top: 5px;
+            font-size: 1rem;
+        }
+        
+        /* ページネーションと件数 */
+        .results-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .pagination {
+            display: flex;
+            gap: 5px;
+        }
+        .pagination button {
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            background-color: white;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .pagination button.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .pagination button:disabled {
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* グリッドレイアウト */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        /* カードデザイン */
+        .card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+        .card:hover { transform: translateY(-5px); }
+        .photo {
+            height: 100px;
+            background-color: #fff4e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info { padding: 15px; display: flex; flex-direction: column; flex-grow: 1; }
+        .category { font-size: 0.75rem; background: var(--primary-color); color: white; padding: 3px 8px; border-radius: 12px; display: inline-block; margin-bottom: 8px; align-self: flex-start;}
+        .name { font-size: 1.1rem; margin: 0 0 10px 0; color: #222; line-height: 1.3;}
+        .detail-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 5px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
+        .detail-label { color: #777; font-size: 0.8rem; }
+        .price { font-weight: bold; color: #d32f2f; font-size: 0.8rem; text-align: right; }
+        .menu { font-size: 0.85rem; color: #555; margin: 10px 0; background: #fff9f0; padding: 10px; border-radius: 5px; border-left: 3px solid var(--primary-color); line-height:1.4;}
+        .address-row {
+            font-size: 0.82rem;
+            color: #555;
+            background: #f7f7f7;
+            padding: 8px 10px;
+            border-radius: 5px;
+            margin: 8px 0;
+            line-height: 1.45;
+        }
+        .address-row strong { color: #444; }
+        .links { margin-top: auto; padding-top: 15px; display: flex; gap: 10px; }
+        .links a { flex: 1; text-align: center; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 0.9rem; color: white; font-weight: bold; background-color: #e59322; transition: opacity 0.2s; }
+        .links a.hp { background-color: #ea5420; }
+        .links a.disabled { background-color: #ccc; cursor: not-allowed; pointer-events: none; }
+        .links a:hover:not(.disabled) { opacity: 0.8; }
+        
+        .no-results { grid-column: 1 / -1; text-align: center; padding: 40px; color: #777; font-size: 1.2rem; }
+    
+        .location-panel {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .location-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        .location-toolbar button {
+            border: 0;
+            border-radius: 6px;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-weight: bold;
+            background: #ff9d00;
+            color: white;
+        }
+        .location-toolbar button.secondary {
+            background: #555;
+        }
+        .location-toolbar button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        #location-status {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.5;
+        }
+        #map-wrap {
+            display: none;
+            margin-top: 14px;
+        }
+        .map-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 9999;
+            width: 42px;
+            height: 42px;
+            border: 0;
+            border-radius: 50%;
+            background: rgba(255,255,255,.96);
+            color: #333;
+            font-size: 28px;
+            line-height: 1;
+            font-weight: 700;
+            box-shadow: 0 2px 8px rgba(0,0,0,.25);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .map-close-btn:hover { background: #f2f2f2; }
+        .map-close-btn:active { transform: scale(.96); }
+
+        #map {
+            width: 100%;
+            height: 460px;
+            min-height: 360px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+            position: relative;
+            background: #eef2f5;
+        }
+        /* Leafletの基本レイアウトを確実に優先 */
+        #map .leaflet-container {
+            width: 100% !important;
+            height: 100% !important;
+            position: relative;
+            overflow: hidden;
+        }
+        #map .leaflet-pane,
+        #map .leaflet-tile-pane,
+        #map .leaflet-overlay-pane,
+        #map .leaflet-shadow-pane,
+        #map .leaflet-marker-pane,
+        #map .leaflet-tooltip-pane,
+        #map .leaflet-popup-pane {
+            position: absolute !important;
+            left: 0;
+            top: 0;
+        }
+        #map .leaflet-tile-pane {
+            z-index: 200;
+        }
+        #map .leaflet-overlay-pane { z-index: 400; }
+        #map .leaflet-shadow-pane { z-index: 500; }
+        #map .leaflet-marker-pane { z-index: 600; }
+        #map .leaflet-tooltip-pane { z-index: 650; }
+        #map .leaflet-popup-pane { z-index: 700; }
+        #map .leaflet-control-container {
+            position: absolute !important;
+            inset: 0;
+            pointer-events: none;
+        }
+        #map .leaflet-top,
+        #map .leaflet-bottom {
+            position: absolute !important;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        #map .leaflet-top { top: 0; }
+        #map .leaflet-bottom { bottom: 0; }
+        #map .leaflet-left { left: 0; }
+        #map .leaflet-right { right: 0; }
+        #map .leaflet-control { pointer-events: auto; }
+        #map .leaflet-tile {
+            max-width: none !important;
+            max-height: none !important;
+        }
+        #map .leaflet-container img {
+            max-width: none !important;
+            max-height: none !important;
+        }
+        .map-summary {
+            margin-top: 10px;
+            background: #fff9f0;
+            border-left: 4px solid var(--primary-color);
+            padding: 10px 12px;
+            line-height: 1.6;
+            font-size: 0.92rem;
+        }
+        .map-btn {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: white;
+            font-weight: bold;
+            background: #2b7de9;
+            border: 0;
+            cursor: pointer;
+        }
+        .map-btn:hover { opacity: 0.85; }
+        @media (max-width: 640px) {
+            #map { height: 380px; min-height: 340px; }
+            .location-toolbar button { width: 100%; }
+        }
+
+            .coord-note{margin-top:6px;font-size:.75rem;color:#777;}
+        .address-row{margin:10px 0;padding:10px;background:#f7fbff;border-left:3px solid #2b7de9;border-radius:5px;line-height:1.45;}
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+
+<header>
+    <h1>🍽️ 高槻駅周辺グルメマップ（座標対応214店舗）</h1>
+</header>
+
+<div class="container">
+    <div class="controls">
+        <div class="control-group">
+            <label for="search-text">キーワード検索</label>
+            <input type="text" id="search-text" placeholder="店名やメニューで検索...">
+        </div>
+        <div class="control-group">
+            <label for="filter-category">カテゴリー</label>
+            <select id="filter-category">
+                <option value="all">すべて</option>
+                <!-- Categories will be populated via JS -->
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="filter-price">予算（目安）</label>
+            <select id="filter-price">
+                <option value="all">気にしない</option>
+                <option value="under2000">2,000円未満</option>
+                <option value="2000to5000">2,000円〜5,000円</option>
+                <option value="over5000">5,000円以上</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="sort-type">並び替え</label>
+            <select id="sort-type">
+                <option value="default">デフォルト順</option>
+                <option value="price-asc">予算が安い順</option>
+                <option value="price-desc">予算が高い順</option>
+                <option value="walk-asc">最寄り駅から近い順</option>
+            </select>
+        </div>
+    </div>
+    
+
+    <div class="location-panel">
+        <div class="location-toolbar">
+            <button id="get-location-btn">📍 現在地を取得</button>
+            <button id="show-all-btn" class="secondary">🗺️ 座標登録店を表示</button>
+            <button id="clear-map-btn" class="secondary">地図を閉じる</button>
+        </div>
+        <div id="location-status">
+            現在地を取得すると、選択した店舗との位置関係・直線距離を地図で確認できます。
+            <br>※スマートフォンでは位置情報の利用許可が必要です。
+        </div>
+        <div id="map-wrap">
+            <div id="map">
+                <button id="map-close-x" class="map-close-btn" type="button" aria-label="地図を閉じる">×</button>
+            </div>
+            <div id="map-summary" class="map-summary"></div>
+            <div style="margin-top:8px;color:#777;font-size:.78rem;">
+                ※店舗の緯度・経度はExcelの座標データをそのまま使用しています。
+            </div>
+        </div>
+    </div>
+
+    <div class="results-info">
+        <div id="hit-count">全 214 件</div>
+        <div class="pagination" id="pagination">
+            <!-- Pagination will be generated here -->
+        </div>
+    </div>
+
+    <div class="grid" id="shop-grid">
+        <!-- JavaScriptでここに店舗データが生成されます -->
+    </div>
+</div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+    // Pythonから埋め込まれたデータ
+    const shops = [{"id":1,"name":"AT THE 21 高槻店","category":"お好み焼き","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"221m","walk":3,"days":"-","weekend":true,"menu":"素材にこだわったボリューム満点のお好み焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町8-18 1F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":2,"name":"まぐろ居酒屋 さかなや道場 高槻店","category":"居酒屋・海鮮","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"364m","walk":5,"days":"-","weekend":true,"menu":"本まぐろ・牡蠣、個室座敷あり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町11-16 第一領家ビル 1F・2F・3F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":3,"name":"魚 だんだん","category":"居酒屋・海鮮","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"260m","walk":4,"days":"-","weekend":true,"menu":"旬の鮮魚、完全個室あり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2丁目14-6","address_source":"Web検索で確認","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":4,"name":"土鍋ご飯と家庭料理 とびら","category":"食堂・居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"333m","walk":5,"days":"-","weekend":true,"menu":"土鍋ごはん、日替わり家庭料理、角煮定食","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2-9-3","address_source":"https://tabelog.com/osaka/A2706/A270604/27144839/","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":5,"name":"串カツ田中 高槻店","category":"串揚げ・居酒屋","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"309m","walk":4,"days":"-","weekend":true,"menu":"大阪伝統の串カツ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町14-1","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":6,"name":"串あげ草馬 JR高槻店","category":"串揚げ・居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"214m","walk":3,"days":"-","weekend":true,"menu":"美味しい串揚げと鯛めし","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-11-9","address_source":"https://kushiagekusaumajrtakatsukiten.owst.jp/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":7,"name":"PoeL kitchen 高槻店","category":"肉バル・パスタ・ステーキ","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"349m","walk":5,"days":"-","weekend":true,"menu":"ステーキ、パスタ、個室あり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町15-3","address_source":"https://poelkitchen.owst.jp/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":8,"name":"くいもの屋わん 阪急高槻店","category":"居酒屋・日本料理・海鮮","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"446m","walk":6,"days":"-","weekend":true,"menu":"個室居酒屋","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市北園町14-13 森本本社ビル B1","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":9,"name":"餃々 阪急高槻店","category":"餃子・居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"416m","walk":6,"days":"-","weekend":true,"menu":"浪花名物ひとくち餃子","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市北園町14-17 宏徳ビル 1F","address_source":"https://tabelog.com/osaka/A2706/A270604/27009919/","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":10,"name":"ギョーザの勝男 高槻店","category":"居酒屋・餃子","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"339m","walk":5,"days":"-","weekend":true,"menu":"餃子・中津唐揚げ食べ放題あり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町14-5","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":11,"name":"肉汁餃子のダンダダン 高槻店","category":"餃子・居酒屋・中華","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ～¥999","station":"251m","walk":4,"days":"-","weekend":true,"menu":"肉汁溢れる手包み餃子","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町12-18","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":12,"name":"餃子のかっちゃん 高槻店","category":"居酒屋・餃子","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"432m","walk":6,"days":"-","weekend":true,"menu":"餃子、食べ飲み放題","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市北園町14-15 森本第二ビル 2階","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":13,"name":"cafe&diner PLUTO","category":"ダイニングバー・イタリアン","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"411m","walk":6,"days":"-","weekend":true,"menu":"クラフトビール、ジビエ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市北園町1-3 2F","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":14,"name":"鶏焼 よし坊","category":"居酒屋・鳥料理","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"255m","walk":4,"days":"-","weekend":true,"menu":"鶏焼肉、からあげ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目13-22 ロータスハウス","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":15,"name":"炭火焼鳥とおでん TORA鶏YA JR高槻店","category":"居酒屋・焼き鳥・おでん","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"295m","walk":4,"days":"-","weekend":true,"menu":"焼鳥とおでん","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町11-23 土屋第1ビル 3F","address_source":"https://sarantakatuki.owst.jp/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":16,"name":"焼肉 藤","category":"焼肉・韓国料理・ホルモン","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: ¥1,000～¥1,999","station":"492m","walk":7,"days":"-","weekend":true,"menu":"藤キムチ系列","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市北園町3-31","address_source":"https://map.yahoo.co.jp/v3/place/TOEU_PwAqEY","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":17,"name":"居酒屋 WAtoWA","category":"居酒屋・おでん","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"361m","walk":5,"days":"-","weekend":true,"menu":"自家製土鍋ご飯","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町15-3 URGE高槻ビル","address_source":"https://www.google.com/maps/search/?api=1&query=居酒屋 WAtoWA 高槻市高槻町15-3","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":18,"name":"Italian Kitchen VANSAN 高槻店","category":"イタリアン","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"369m","walk":5,"days":"-","weekend":true,"menu":"生パスタ、窯焼きピッツァ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町11-9","address_source":"https://vansan-ltd.jp/vansan/vansan-takatsuki/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":19,"name":"スタンドB","category":"居酒屋・韓国料理・中華","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥2,000～¥2,999","station":"368m","walk":5,"days":"-","weekend":true,"menu":"生牡蠣食べ放題コース","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町14-8 幸ビル2F","address_source":"https://sutandob.owst.jp/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":20,"name":"ラクレットチーズ×個室肉バル 高槻肉の会","category":"チーズ料理・肉バル","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"405m","walk":6,"days":"-","weekend":true,"menu":"100種以上食べ放題コース","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/?LstRange=SG","sns":"","address":"大阪府高槻市北園町14-18 がんこビル B1F","address_source":"https://tabelog.com/osaka/A2706/A270604/27100864/","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":21,"name":"福宝","category":"火鍋・四川料理","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"357m","walk":5,"days":"-","weekend":true,"menu":"四川火鍋セット、麻辣湯","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町18-9","address_source":"https://www.google.com/maps/search/?api=1&query=中華料理 福宝 高槻市高槻町18-9","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":22,"name":"あたぼうや 高槻店","category":"居酒屋・焼き鳥・海鮮","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥2,000～¥2,999","station":"295m","walk":4,"days":"-","weekend":true,"menu":"完全個室の和モダン居酒屋","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町11-23 土屋第一ビル 4階","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":23,"name":"原価ビストロチーズプラス 高槻","category":"イタリアン・ピザ","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"365m","walk":5,"days":"-","weekend":true,"menu":"本格イタリアン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町14-19 ソレイユ 1F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":24,"name":"博多もつ処 東屋 ふたば店","category":"もつ鍋・居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"308m","walk":4,"days":"-","weekend":true,"menu":"黒毛和牛もつ鍋","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-14 プレミアビル 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/27103075/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":25,"name":"炭火焼肉もっくん 高槻店","category":"焼肉・ホルモン","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"217m","walk":3,"days":"-","weekend":true,"menu":"掘り炬燵あり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2-6-16","address_source":"https://sumibiyakinikutakatsuki.owst.jp/","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":26,"name":"ぢどり亭 高槻店","category":"居酒屋・鳥料理","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"253m","walk":4,"days":"-","weekend":true,"menu":"薩摩郷土料理と地酒","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-4 藤ビル 2F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":27,"name":"個室居酒屋たどつや 高槻店","category":"居酒屋・海鮮・鳥料理","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"255m","walk":4,"days":"-","weekend":true,"menu":"完全個室","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町12-18 TJ高槻ビル2F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":28,"name":"焼肉 しがらき","category":"焼肉・ホルモン","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: ¥1,000～¥1,999","station":"329m","walk":5,"days":"-","weekend":true,"menu":"黒毛和牛の本格焼肉","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":29,"name":"くしや 鳥時々","category":"焼き鳥・鳥料理","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: ¥1,000～¥1,999","station":"221m","walk":3,"days":"-","weekend":true,"menu":"ブランド鶏、創作料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町12-2","address_source":"https://tabelog.com/osaka/A2706/A270604/27105105/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":30,"name":"本格熟成うどん 一期一麺","category":"うどん","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ～¥999","station":"445m","walk":6,"days":"-","weekend":true,"menu":"熟成うどん","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1丁目9-15 永井ビル","address_source":"Web検索で確認","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":31,"name":"たご作 阪急高槻店","category":"居酒屋・創作料理","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥2,000～¥2,999","station":"446m","walk":6,"days":"-","weekend":true,"menu":"個室・宴会向け","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1丁目3-37","address_source":"Web検索で確認","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":32,"name":"たかつきレバー","category":"居酒屋・もつ鍋・串焼き","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"374m","walk":5,"days":"-","weekend":true,"menu":"牛串、もつ鍋","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町18-10","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":33,"name":"串の坊 高槻阪急スクエア店","category":"串揚げ・居酒屋","photo":"🍽️","price":8000,"price_str":"ランチ: ¥8,000～¥9,999 / ディナー: ¥2,000～¥2,999","station":"189m","walk":3,"days":"-","weekend":true,"menu":"串カツ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急6F","address_source":"https://akr0105417763.owst.jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":34,"name":"居酒屋 希SAKU","category":"居酒屋・海鮮・串揚げ","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: ¥1,000～¥1,999","station":"200m","walk":3,"days":"-","weekend":true,"menu":"生本鮪、旬魚、日本酒","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目19-14 YUVI 2 1-B","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":35,"name":"桃谷樓 高槻阪急スクエア店","category":"中華料理・薬膳","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: ¥1,000～¥1,999","station":"162m","walk":3,"days":"-","weekend":true,"menu":"中華コース","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急6F","address_source":"https://tokokuro.jp/shop/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":36,"name":"iRis","category":"カフェ・バー","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"474m","walk":6,"days":"-","weekend":true,"menu":"要店舗ページ確認","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1丁目4-39 103号","address_source":"Web検索で確認","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":37,"name":"和ダイニング 四季彩々","category":"居酒屋・海鮮・日本料理","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: ¥1,000～¥1,999","station":"153m","walk":2,"days":"-","weekend":true,"menu":"個室・飲み放題","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目10-30","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":38,"name":"Take'","category":"フレンチ・バー","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: ¥2,000～¥2,999","station":"389m","walk":5,"days":"-","weekend":true,"menu":"魚介料理、コース","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市北園町13-29 SAKURAビル 1F","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":39,"name":"タージマハル エベレスト 高槻店","category":"インド料理・カレー","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"429m","walk":6,"days":"-","weekend":true,"menu":"カレー、ナン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市真上町1-1-20 シティコーポ真上1F","address_source":"https://tabelog.com/osaka/A2706/A270604/27050394/","lat":34.855939,"lon":135.61282,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/真上町１丁目/"},{"id":40,"name":"はな彦","category":"日本料理・居酒屋","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: -","station":"398m","walk":5,"days":"-","weekend":true,"menu":"和食","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町20-3 和田ビル","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":41,"name":"千房 高槻阪急スクエア支店","category":"お好み焼き・鉄板焼き","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"208m","walk":3,"days":"-","weekend":true,"menu":"お好み焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/3/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア 6F","address_source":"Web検索で確認","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":42,"name":"香櫨苑 高槻阪急店","category":"焼肉・ホルモン・ステーキ","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"191m","walk":3,"days":"-","weekend":true,"menu":"黒毛和牛","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急店 6階","address_source":"Web検索で確認","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":43,"name":"SARA〜紬〜","category":"ピザ・イタリアン・バル","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"399m","walk":5,"days":"-","weekend":true,"menu":"魚介、窯焼きピッツァ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町15-18 井上ビル 辻中ビル B1","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":44,"name":"楽呑 凛","category":"日本料理・居酒屋","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"241m","walk":4,"days":"-","weekend":true,"menu":"丁寧なお出汁の和食","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目14-27 ミドリビル 1F","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":45,"name":"STEAK-KAPPO TSUKI","category":"ステーキ・フレンチ","photo":"🍽️","price":10000,"price_str":"ランチ: ¥10,000～¥14,999 / ディナー: ¥5,000～¥5,999","station":"386m","walk":5,"days":"-","weekend":true,"menu":"シャトーブリアン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市北園町13-29 SAKURAビルⅡ 1F","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":46,"name":"鶏酒場 ちょびっと","category":"居酒屋・日本酒バー","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"297m","walk":4,"days":"-","weekend":true,"menu":"鶏料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-13","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":47,"name":"焼肉藤子","category":"焼肉・韓国料理・ホルモン","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: -","station":"348m","walk":5,"days":"-","weekend":true,"menu":"黒毛和牛焼肉","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町7-10","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":48,"name":"AKUTAGAWA BASE","category":"バー・ビアバー・バル","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"251m","walk":4,"days":"-","weekend":true,"menu":"クラフトビール","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目15-4 ミドリ芥川第2ビル 2階C","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":49,"name":"お好み焼はここやねん 高槻駅前店","category":"お好み焼き・もんじゃ","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"221m","walk":3,"days":"-","weekend":true,"menu":"お好み焼き、焼きそば","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町7-14","address_source":"https://www.cocoyanen.jp/shop","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":50,"name":"グラッツェ","category":"パスタ・イタリアン","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"412m","walk":6,"days":"-","weekend":true,"menu":"モッチモチのパスタ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市北園町18-1 2F","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":51,"name":"はてなのちゃわん","category":"海鮮・居酒屋","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"345m","walk":5,"days":"-","weekend":true,"menu":"四季の食材、日本酒","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町7-12","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":52,"name":"スパニッシュバル＆カフェ ニュートラル","category":"スペイン料理・カフェ","photo":"🍽️","price":6000,"price_str":"ランチ: ¥6,000～¥7,999 / ディナー: ¥3,000～¥3,999","station":"475m","walk":6,"days":"-","weekend":true,"menu":"魚介パエリア","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1-9-6","address_source":"https://tabelog.com/osaka/A2706/A270604/27066964/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":53,"name":"地酒蕗の薹","category":"日本酒バー・居酒屋","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"466m","walk":6,"days":"-","weekend":true,"menu":"東北の地酒","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市北園町12-16","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":54,"name":"大衆鮮魚酒場 かいじ","category":"居酒屋・海鮮・焼き鳥","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"452m","walk":6,"days":"-","weekend":true,"menu":"新鮮海鮮、夜定食","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市北園町19-12 キリメビル 1F","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":55,"name":"アユタヤ","category":"タイ料理","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"317m","walk":4,"days":"-","weekend":true,"menu":"本場タイ料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町17-4 セントラルマーケット 2F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":56,"name":"タイ料理 サバイサバイ","category":"タイ料理","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"412m","walk":6,"days":"-","weekend":true,"menu":"本場タイの味","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市北園町18-1 コーケンビル2F","address_source":"https://thairestaurant-sabaisabai.com/access.html","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":57,"name":"酒房 明石八 高槻店","category":"居酒屋","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ～¥999","station":"362m","walk":5,"days":"-","weekend":true,"menu":"直送鮮魚、ハッピーアワー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町14-8 幸ビル","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":58,"name":"フランス料理 ポン・マリー 高槻店","category":"フレンチ","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: ¥3,000～¥3,999","station":"183m","walk":3,"days":"-","weekend":true,"menu":"世界のワイン、コース","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急 6F","address_source":"Web検索で確認","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":59,"name":"四万十川","category":"郷土料理・海鮮","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: -","station":"368m","walk":5,"days":"-","weekend":true,"menu":"鰹の藁焼きなど","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市北園町13-30","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":60,"name":"串焼 chick","category":"焼き鳥・串焼き","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"440m","walk":6,"days":"-","weekend":true,"menu":"串焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1-3-26 並河ビル","address_source":"https://tabelog.com/osaka/A2706/A270604/27140286/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":61,"name":"鮨・酒・肴 杉玉 高槻","category":"寿司・居酒屋・海鮮","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"327m","walk":5,"days":"-","weekend":true,"menu":"寿司と地酒","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町16-5 高槻天神の湯 B1F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":62,"name":"kunsei lover fumo","category":"バル・カレー","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥2,000～¥2,999","station":"382m","walk":5,"days":"-","weekend":true,"menu":"自家燻製料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/5/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町20-8","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":63,"name":"食べ飲み放題 居酒屋 高槻ちゃぶちゃぶ","category":"居酒屋・鍋・海鮮","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"297m","walk":4,"days":"-","weekend":true,"menu":"食べ飲み放題","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/5/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-10 第二土屋ビル2F","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":64,"name":"お酒とごはん えだまめ","category":"居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"429m","walk":6,"days":"-","weekend":true,"menu":"お酒に合う料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/5/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町13-19 大和ビル","address_source":"Web検索で確認","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":65,"name":"鰻や牡蠣とか 炭し","category":"うなぎ・海鮮・居酒屋","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: ¥2,000～¥2,999","station":"332m","walk":5,"days":"-","weekend":true,"menu":"炭焼き国産鰻、牡蠣","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/5/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2丁目9-11 平岡ビル 1F","address_source":"Web検索で確認","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":66,"name":"海鮮居酒屋 まるはち","category":"居酒屋・海鮮","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"302m","walk":4,"days":"-","weekend":true,"menu":"鮮魚がおすすめ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/5/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-14","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":67,"name":"BAR DEEP","category":"バー・カレー","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"348m","walk":5,"days":"-","weekend":true,"menu":"自家製ジン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/6/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町7-13 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/27009656/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":68,"name":"パステルイタリアーナ アルプラザ高槻店","category":"パスタ・イタリアン","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"102m","walk":2,"days":"-","weekend":true,"menu":"パスタ・ピザ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/6/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目2-2 アルプラザ高槻 4F","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":69,"name":"昭龍軒","category":"中華料理・ラーメン","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ～¥999","station":"456m","walk":6,"days":"-","weekend":true,"menu":"中華料理、ランチ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/6/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1丁目10-8","address_source":"Web検索で確認","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":70,"name":"高槻 天野","category":"日本料理","photo":"🍽️","price":15000,"price_str":"ランチ: ¥15,000～¥19,999 / ディナー: ¥6,000～¥7,999","station":"252m","walk":4,"days":"-","weekend":true,"menu":"コース料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/6/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目15-4 ミドリ芥川第2ビル 1階","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":71,"name":"ターブル タカイ","category":"フレンチ","photo":"🍽️","price":8000,"price_str":"ランチ: ¥8,000～¥9,999 / ディナー: ¥4,000～¥4,999","station":"207m","walk":3,"days":"-","weekend":true,"menu":"本格フレンチ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/6/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1丁目14-9 西形ビル","address_source":"Web検索で確認","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":72,"name":"蛸源","category":"たこ焼き","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: -","station":"409m","walk":6,"days":"-","weekend":true,"menu":"たこ焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市北園町14-4","address_source":"Web検索で確認","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":73,"name":"茶寮 伊藤園 高槻阪急店","category":"甘味処・ソフトクリーム","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"206m","walk":3,"days":"-","weekend":true,"menu":"抹茶・ほうじ茶、かき氷","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急B1F","address_source":"https://tabelog.com/osaka/A2706/A270604/27114685/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":74,"name":"ハマヤコーヒーショップ 松坂屋高槻店","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"149m","walk":2,"days":"-","weekend":true,"menu":"コーヒー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店B1F","address_source":"https://tabelog.com/osaka/A2706/A270604/27014931/dtlmap/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":75,"name":"アフタヌーンティー・リビング 高槻阪急店","category":"カフェ・その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"206m","walk":3,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急2F","address_source":"https://tabelog.com/osaka/A2706/A270604/27117896/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":76,"name":"麺屋 きん次郎","category":"ラーメン","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"121m","walk":2,"days":"-","weekend":true,"menu":"辛ラーメン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-7-9","address_source":"https://tabelog.com/osaka/A2706/A270604/27136962/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":77,"name":"パティスリーカヌリエ","category":"ケーキ・洋菓子","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"291m","walk":4,"days":"水曜日","weekend":true,"menu":"ケーキ・チョコレート","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市天神町1-5-5 クレール天神","address_source":"https://tabelog.com/osaka/A2706/A270604/27124616/","lat":34.85692,"lon":135.617573,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/天神町１丁目/"},{"id":78,"name":"月島もんじゃ たまとや 高槻","category":"もんじゃ焼き","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"242m","walk":4,"days":"-","weekend":true,"menu":"もんじゃ焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-3","address_source":"Web検索で確認","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":79,"name":"笑路屋","category":"居酒屋","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"84m","walk":2,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/7/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町1-15 グリーンプラザ3号館 地下飲食街","address_source":"https://tabelog.com/osaka/A2706/A270604/27106160/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":80,"name":"ケリー 松坂屋高槻店","category":"洋菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"138m","walk":2,"days":"-","weekend":true,"menu":"バームクーヘン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1","address_source":"https://shopblog.dmdepart.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":81,"name":"カステラ銀装 松坂屋高槻店","category":"カステラ・和菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"カステラ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1","address_source":"https://tabelog.com/osaka/A2706/A270604/27058529/dtlmap/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":82,"name":"ホルモンとハラミとわたし。","category":"焼肉・ホルモン","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"352m","walk":5,"days":"-","weekend":true,"menu":"ホルモン、ハラミ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町7-15","address_source":"https://www.google.com/maps/search/?api=1&query=ホルモンとハラミとわたし。高槻市高槻町7-15","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":83,"name":"一乗寺キタガワ 松坂屋高槻店","category":"惣菜・デリ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"惣菜・デリ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1","address_source":"https://shopblog.dmdepart.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":84,"name":"みうら","category":"居酒屋・日本料理","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"368m","walk":5,"days":"月・日・祝","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":85,"name":"オーエスドラッグ 高槻店","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"401m","walk":6,"days":"-","weekend":true,"menu":"飲食店ではない可能性あり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町20-15","address_source":"https://map.yahoo.co.jp/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":86,"name":"珈琲館 高槻阪急スクエア店","category":"カフェ","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"181m","walk":3,"days":"-","weekend":true,"menu":"コーヒー・ケーキ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4 高槻阪急スクエア3F","address_source":"https://www.google.com/maps/search/?api=1&query=珈琲館 高槻阪急スクエア店","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":87,"name":"朱李","category":"居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"236m","walk":3,"days":"日曜日","weekend":true,"menu":"JR高槻西口から徒歩3分","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2-1-9","address_source":"https://www.google.com/maps/search/?api=1&query=朱李 高槻市芥川町2-1-9","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":88,"name":"アートデアート・ビュー","category":"カフェ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"397m","walk":5,"days":"火曜日","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市北園町13-30","address_source":"https://www.google.com/maps/search/?api=1&query=アートデアート・ビュー 高槻市北園町13-30","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":89,"name":"田村漬物店","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"154m","walk":2,"days":"-","weekend":true,"menu":"漬物","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-10-30","address_source":"https://tabelog.com/osaka/A2706/A270604/27089374/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":90,"name":"ヨックモック 高槻阪急","category":"洋菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"227m","walk":3,"days":"-","weekend":true,"menu":"洋菓子","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1","address_source":"https://www.google.com/maps/search/?api=1&query=ヨックモック 高槻阪急","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":91,"name":"BAR SOLT","category":"バー","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"424m","walk":6,"days":"-","weekend":true,"menu":"バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/8/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町20-19 3F","address_source":"https://www.google.com/maps/search/?api=1&query=BAR SOLT 高槻市高槻町20-19","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":92,"name":"赤と青 高槻阪急店","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"206m","walk":3,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":93,"name":"結 松坂屋高槻店","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"138m","walk":2,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店","address_source":"https://www.matsuzakaya.co.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":94,"name":"T Room","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"436m","walk":6,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2-17-4 1F トエル","address_source":"https://www.google.com/maps/search/?api=1&query=T Room 高槻市芥川町2-17-4","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":95,"name":"HELLO ベジおはぎ","category":"スイーツ","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"474m","walk":6,"days":"月・火・木・金・土・日","weekend":true,"menu":"ベジおはぎ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1-9-6 福寿舎","address_source":"https://tabelog.com/osaka/A2706/A270604/27131818/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":96,"name":"がんてつ 高槻店","category":"焼肉・鍋","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000～¥4,999 / ディナー: -","station":"446m","walk":6,"days":"火曜日","weekend":true,"menu":"焼肉","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市北園町18-14","address_source":"https://www.google.com/maps/search/?api=1&query=がんてつ 高槻店","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":97,"name":"ダイニングカフェ三縁山","category":"食堂・うどん・喫茶","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"85m","walk":2,"days":"水曜日","weekend":true,"menu":"うどん・喫茶","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町3-1 グリーンプラザ高槻3号館B1F","address_source":"https://tabelog.com/osaka/A2706/A270604/27104745/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":98,"name":"ふぐと鉄板焼 がぶ飲み酒場","category":"居酒屋・ふぐ・鉄板焼き","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: ¥1,000～¥1,999","station":"321m","walk":5,"days":"火曜日","weekend":true,"menu":"定食・鉄板焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町17-4 セントラルマーケット 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/27141653/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":99,"name":"セレンテーブル","category":"オーガニック・カフェ","photo":"🍽️","price":1000,"price_str":"ランチ: - / ディナー: ¥1,000～¥1,999","station":"399m","walk":5,"days":"-","weekend":true,"menu":"ケーキ、カプチーノ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市天神町1-8-15","address_source":"https://www.google.com/maps/search/?api=1&query=seren-table 高槻市天神町1-8-15","lat":34.85692,"lon":135.617573,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/天神町１丁目/"},{"id":100,"name":"カフェ バー コダイン","category":"バー・カフェ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"373m","walk":5,"days":"日曜日","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/9/?LstRange=SG","sns":"","address":"大阪府高槻市北園町13-23","address_source":"https://tabelog.com/osaka/A2706/A270604/27114347/","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":101,"name":"もりもと 本店","category":"日本酒バー・バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"451m","walk":6,"days":"日曜日","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":102,"name":"いし川","category":"日本料理","photo":"🍽️","price":6000,"price_str":"ランチ: ¥6,000～¥7,999 / ディナー: -","station":"275m","walk":4,"days":"-","weekend":true,"menu":"素材を吟味した日本料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-13-17","address_source":"https://www.google.com/maps/search/?api=1&query=高槻 いし川","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":103,"name":"京樽 高槻松坂屋","category":"寿司","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"寿司","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1 高槻松坂屋 B1F","address_source":"https://map.yahoo.co.jp/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":104,"name":"福田バー","category":"バー","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: -","station":"227m","walk":3,"days":"日曜日","weekend":true,"menu":"老舗バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町12-4 二宮マンション","address_source":"https://www.google.com/maps/search/?api=1&query=福田バー 高槻市高槻町12-4","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":105,"name":"麺屋 八海山","category":"ラーメン","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"213m","walk":3,"days":"日・祝","weekend":true,"menu":"煮干し・縮れ麺","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-14-9","address_source":"https://tabelog.com/osaka/A2706/A270604/27061072/dtlmap/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":106,"name":"フィリピンレストラン Cebu","category":"バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"264m","walk":4,"days":"-","weekend":true,"menu":"カラオケ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-13-22 ロータスハウス 3F","address_source":"https://tabelog.com/osaka/A2706/A270604/27148850/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":107,"name":"UCCカフェプラザ 高槻阪急スクエア店","category":"喫茶店・カフェ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"162m","walk":3,"days":"-","weekend":true,"menu":"コーヒー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 西武百貨店高槻店2F","address_source":"https://www.google.com/maps/search/?api=1&query=UCCカフェプラザ 高槻阪急スクエア店","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":108,"name":"じゃがいも","category":"弁当・惣菜","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"399m","walk":5,"days":"土・日","weekend":true,"menu":"弁当","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/?LstRange=SG","sns":"","address":"大阪府高槻市西町3-3","address_source":"https://www.google.com/maps/search/?api=1&query=お惣菜専門店 じゃがいも 高槻市西町3-3","lat":34.823126,"lon":135.59632,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/西町/"},{"id":109,"name":"山彦","category":"食堂","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"489m","walk":7,"days":"日曜日","weekend":true,"menu":"ランチ定食","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1-8-10","address_source":"https://www.google.com/maps/search/?api=1&query=お食事処 山彦 高槻市城北町1-8-10","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":110,"name":"クレープとエスプレッソと高槻","category":"クレープ・ガレット","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"440m","walk":6,"days":"-","weekend":true,"menu":"クレープ、エスプレッソ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/?LstRange=SG","sns":"","address":"大阪府高槻市北園町19-17 サンコービル1F","address_source":"https://www.google.com/maps/search/?api=1&query=クレープとエスプレッソと高槻","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":111,"name":"シュガーバターの木 高槻阪急店","category":"洋菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"206m","walk":3,"days":"-","weekend":true,"menu":"シュガーバターサンド","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://map.yahoo.co.jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":112,"name":"楽笑","category":"立ち飲み・バー・居酒屋","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: -","station":"254m","walk":4,"days":"日曜日","weekend":true,"menu":"軽い飲み","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-24","address_source":"https://www.google.com/maps/search/?api=1&query=楽笑 高槻市高槻町13-24","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":113,"name":"Brasserie24℃","category":"フレンチ・創作料理","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: ¥1,000～¥1,999","station":"257m","walk":4,"days":"月曜日","weekend":true,"menu":"ランチ・フレンチ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町6-24 スカイハイツ1F","address_source":"https://www.google.com/maps/search/?api=1&query=Brasserie24 高槻市高槻町6-24","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":114,"name":"呑み処 ジロ","category":"居酒屋","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"347m","walk":5,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町7-15","address_source":"https://tabelog.com/osaka/A2706/A270604/27154056/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":115,"name":"四陸 高槻阪急店","category":"中華料理・惣菜","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"207m","walk":3,"days":"-","weekend":true,"menu":"中華惣菜","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":116,"name":"ROCK SWEETS 高槻店","category":"洋菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"401m","walk":6,"days":"月・火・水・木","weekend":true,"menu":"洋菓子","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":117,"name":"丹波 高槻店","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"192m","walk":3,"days":"日・祝","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-11-2","address_source":"https://www.ekiten.jp/shop_57482865/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":118,"name":"丹青","category":"パン・サンドイッチ","photo":"🍽️","price":2000,"price_str":"ランチ: - / ディナー: ¥2,000～¥2,999","station":"428m","walk":6,"days":"-","weekend":true,"menu":"パン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"大阪府高槻市上田辺町18-5","address_source":"https://tabelog.com/osaka/A2706/A270604/27136176/","lat":34.848929,"lon":135.616708,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/上田辺町/"},{"id":119,"name":"マリモ","category":"バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"269m","walk":4,"days":"日・祝","weekend":true,"menu":"ジャズバー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":120,"name":"サケバー アクタ","category":"日本酒バー・寿司・海鮮","photo":"🍽️","price":5000,"price_str":"ランチ: ¥5,000～¥5,999 / ディナー: -","station":"244m","walk":4,"days":"-","weekend":true,"menu":"日本酒と寿司","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2-14-3","address_source":"https://tabelog.com/osaka/A2706/A270604/27113332/","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":121,"name":"スターバックスコーヒー 高槻阪急店","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"206m","walk":3,"days":"-","weekend":true,"menu":"コーヒー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急1F","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":122,"name":"無印良品 高槻阪急","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"212m","walk":3,"days":"-","weekend":true,"menu":"飲食店ではない可能性あり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア 2F","address_source":"https://www.muji.com/jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":123,"name":"ジラソーレ","category":"カフェ・喫茶店","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":124,"name":"サブウェイ JR高槻駅店","category":"サンドイッチ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"34m","walk":1,"days":"-","weekend":true,"menu":"サンドイッチ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町1-1 高槻駅構内(スイートプラザ内)","address_source":"https://www.subway.co.jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":125,"name":"Shot Bar Crown-Clown","category":"バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"347m","walk":5,"days":"-","weekend":true,"menu":"バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町7-15 モリヒロ興産第2ビル 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":126,"name":"穂の香 高槻アルプラザ店","category":"うどん","photo":"🍽️","price":1000,"price_str":"ランチ: - / ディナー: ¥1,000～¥1,999","station":"123m","walk":2,"days":"-","weekend":true,"menu":"うどん、鍋焼きうどん","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-2 アルプラザ高槻","address_source":"https://www.actamore.jp/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":127,"name":"3104丁目","category":"ラーメン・つけ麺","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"439m","walk":6,"days":"-","weekend":true,"menu":"鯵だしラーメン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1-9-11 湯浅ビル102","address_source":"https://3104chome.com/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":128,"name":"ゴンチャロフ 松坂屋高槻店","category":"チョコレート","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"ジェンティ＆リンフォードA","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店","address_source":"https://www.goncharoff.co.jp/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":129,"name":"カフェ・ド・クリエ 高槻阪急スクエア店","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"268m","walk":4,"days":"-","weekend":true,"menu":"スムージー・ドリンク","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア4F","address_source":"https://c-united.co.jp/store/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":130,"name":"マエダコーヒー","category":"カフェ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"278m","walk":4,"days":"月曜日","weekend":true,"menu":"コーヒー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町13-7 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":131,"name":"メディアカフェ ポパイ 高槻店","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"306m","walk":4,"days":"-","weekend":true,"menu":"店舗ページ参照","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":132,"name":"スターバックスコーヒー JR高槻駅北店","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"90m","walk":2,"days":"-","weekend":true,"menu":"コーヒー・コールドブリュー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":133,"name":"古市庵 高槻阪急店","category":"寿司","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"209m","walk":3,"days":"-","weekend":true,"menu":"寿司・巻き寿司","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":134,"name":"赤茄子屋","category":"ハンバーグ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"417m","walk":6,"days":"-","weekend":true,"menu":"ハンバーグ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/?LstRange=SG","sns":"","address":"大阪府高槻市天神町1丁目8-11","address_source":"https://tabelog.com/osaka/C27207/C80768/rstLst/hamburgersteak/","lat":34.85692,"lon":135.617573,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/天神町１丁目/"},{"id":135,"name":"DELI goo","category":"惣菜・デリ","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"401m","walk":6,"days":"木曜日","weekend":true,"menu":"惣菜","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2-11-5","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":136,"name":"バー ノーザン","category":"バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"271m","walk":4,"days":"-","weekend":true,"menu":"バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町2-13-33 insist25 3F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":137,"name":"レスポワール 松坂屋高槻店","category":"洋菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"洋菓子","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店","address_source":"https://www.matsuzakaya.co.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":138,"name":"アイズデリ 高槻阪急店","category":"惣菜・デリ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"206m","walk":3,"days":"-","weekend":true,"menu":"惣菜","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":139,"name":"GODIVA 阪急高槻","category":"チョコレート","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"211m","walk":3,"days":"-","weekend":true,"menu":"チョコレート","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":140,"name":"裸足のマミさんの店","category":"バー","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"221m","walk":3,"days":"日・祝","weekend":true,"menu":"バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町4-5","address_source":"https://www.instagram.com/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":141,"name":"ダイニングカフェバー高橋熱帯魚","category":"バー・カレー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"338m","walk":5,"days":"-","weekend":true,"menu":"カレー・バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":142,"name":"バッカス","category":"バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"445m","walk":6,"days":"-","weekend":true,"menu":"バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市城北町1-10-1 城北ビル1F","address_source":"https://www.hotpepper.jp/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":143,"name":"アイダイニング 松坂屋高槻店","category":"惣菜・デリ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"コロッケ・惣菜","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店","address_source":"https://www.matsuzakaya.co.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":144,"name":"ＪｕＪｕ","category":"居酒屋","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"240m","walk":3,"days":"日曜日","weekend":true,"menu":"豚肩ロースのワイン煮など","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":145,"name":"Zeal","category":"ダイニングバー","photo":"🍽️","price":1000,"price_str":"ランチ: - / ディナー: ¥1,000～¥1,999","station":"445m","walk":6,"days":"土・日・祝","weekend":true,"menu":"家庭料理系","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":146,"name":"菓匠 清閑院 高槻阪急","category":"和菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"226m","walk":3,"days":"-","weekend":true,"menu":"和菓子","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":147,"name":"美鶴","category":"居酒屋","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"446m","walk":6,"days":"-","weekend":true,"menu":"居酒屋料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":148,"name":"デリチュース 高槻店","category":"ケーキ・洋菓子","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"23m","walk":1,"days":"-","weekend":true,"menu":"チーズケーキ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町1-1-1","address_source":"https://map.yahoo.co.jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":149,"name":"京都 古都果 高槻店","category":"サンドイッチ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"370m","walk":5,"days":"火曜日","weekend":true,"menu":"フルーツサンド","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町16-5","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":150,"name":"インド・ネパール料理 ニューアンナプルナ 高槻店","category":"インド料理・カレー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"429m","walk":6,"days":"-","weekend":true,"menu":"インドカレー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市紺屋町13-19 ヤマトビル 1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":151,"name":"リ・オ・ショコラ 高槻阪急店","category":"チョコレート","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"211m","walk":3,"days":"-","weekend":true,"menu":"チョコレート","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":152,"name":"ガスト 阪急高槻市駅前店","category":"ファミレス","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ～¥999","station":"464m","walk":6,"days":"-","weekend":true,"menu":"うな重など","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市城北町2-1-18","address_source":"https://map.yahoo.co.jp/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":153,"name":"お好み焼き 種次郎","category":"お好み焼き・焼きそば","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"376m","walk":5,"days":"火曜日","weekend":true,"menu":"お好み焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町15-19 園田ビル 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":154,"name":"コロッケのいろは 市場店","category":"コロッケ・弁当・惣菜","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"308m","walk":4,"days":"-","weekend":true,"menu":"コロッケ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町18-1","address_source":"https://www.iroha.co.jp/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":155,"name":"ブラック フラッグ","category":"バー","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000～¥3,999 / ディナー: -","station":"269m","walk":4,"days":"-","weekend":true,"menu":"バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":156,"name":"焼肉 丼一番","category":"焼肉","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"337m","walk":5,"days":"-","weekend":true,"menu":"焼肉丼","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町15-2","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":157,"name":"おばん菜 京ちゃん","category":"居酒屋","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"259m","walk":4,"days":"-","weekend":true,"menu":"おばん菜","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市高槻町7-6","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":158,"name":"創作串かつ 千尋 GOO","category":"洋食・ダイニングバー・牛料理","photo":"🍽️","price":1000,"price_str":"ランチ: - / ディナー: ¥1,000～¥1,999","station":"197m","walk":3,"days":"木曜日","weekend":true,"menu":"三元豚のトンカツ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"大阪府高槻市芥川町1-9-14","address_source":"https://www.goo-chihiro.com/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":159,"name":"アローム 高槻店","category":"パン・サンドイッチ・洋菓子","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"186m","walk":3,"days":"-","weekend":true,"menu":"パン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/?LstRange=SG","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":160,"name":"麺屋 たけ井 エミル高槻店","category":"ラーメン・つけ麺","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥1,000～¥1,999","station":"557m","walk":7,"days":"-","weekend":true,"menu":"季節限定の冷やし塩つけ麺など","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/","sns":"","address":"大阪府高槻市城北町2-1-18 EMIRU高槻2F","address_source":"https://map.yahoo.co.jp/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":161,"name":"ビリーズ バウンス","category":"バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"604m","walk":8,"days":"月曜日","weekend":true,"menu":"ジャズバー・バー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/","sns":"","address":"大阪府高槻市城北町2-3-15 高槻W&Mホテル 1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":162,"name":"レストランミューズ","category":"学生食堂","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: -","station":"550m","walk":7,"days":"日曜日","weekend":true,"menu":"学生食堂・カレー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/","sns":"","address":"大阪府高槻市白梅町7-1","address_source":"https://www.city.takatsuki.osaka.jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":163,"name":"プカ オーガニクス","category":"サンドイッチ・ハンバーガー・カフェ","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"602m","walk":8,"days":"月曜日、土曜日、日曜日、祝日","weekend":true,"menu":"ピタパンサンド","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":164,"name":"ファミリーマート 大阪医大店","category":"コンビニ・スーパー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"639m","walk":8,"days":"-","weekend":true,"menu":"コンビニ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/11/","sns":"","address":"大阪府高槻市大学町2-7 大阪医科薬科大学病院内","address_source":"https://www.family.co.jp/","lat":34.851884,"lon":135.625077,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/大学町/"},{"id":165,"name":"さえき 松坂屋高槻店","category":"弁当・惣菜・デリ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"弁当・惣菜","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店 B1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":166,"name":"ホテルアベストグランデ高槻","category":"ホテル","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"216m","walk":3,"days":"-","weekend":true,"menu":"ホテル","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/","sns":"","address":"大阪府高槻市芥川町1-14-1","address_source":"https://www.hotelabest-takatsuki.com/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":167,"name":"ラテ","category":"喫茶店","photo":"🍽️","price":999,"price_str":"ランチ: - / ディナー: ～¥999","station":"136m","walk":2,"days":"日曜日","weekend":true,"menu":"レトロな喫茶店","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/","sns":"","address":"大阪府高槻市紺屋町1-1 グリーンプラザたかつき1号館 1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":168,"name":"カラオケ JOYJOY 阪急高槻南店","category":"カラオケ","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"638m","walk":8,"days":"-","weekend":true,"menu":"カラオケ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/","sns":"","address":"大阪府高槻市城北町2-5-17","address_source":"https://joyjoy.co.jp/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":169,"name":"ミニワン 松坂屋高槻店","category":"パン","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"137m","walk":2,"days":"-","weekend":true,"menu":"パン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店 B1F","address_source":"https://map.yahoo.co.jp/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":170,"name":"粋","category":"居酒屋・海鮮・日本料理","photo":"🍽️","price":4000,"price_str":"ランチ: - / ディナー: ¥4,000～¥4,999","station":"577m","walk":8,"days":"日曜日、祝日","weekend":true,"menu":"旬魚・日本料理","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/12/","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":171,"name":"ドトールコーヒーショップ 大阪医科薬科大学病院店","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: -","station":"670m","walk":9,"days":"-","weekend":true,"menu":"病院内カフェ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市大学町2-7","address_source":"https://map.yahoo.co.jp/","lat":34.851884,"lon":135.625077,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/大学町/"},{"id":172,"name":"Tea Room17","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"113m","walk":2,"days":"火曜日、水曜日","weekend":true,"menu":"フルーツティー、隣のケーキ店のケーキ持込可の口コミ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市芥川町1-7-7 はむろ屋ビル 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":173,"name":"ファミリーマート 阪急高槻市駅前店","category":"コンビニ・スーパー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"600m","walk":8,"days":"-","weekend":true,"menu":"コンビニ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市城北町2-4-8 高槻南阪急ビル1F","address_source":"https://map.yahoo.co.jp/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":174,"name":"大衆酒場 うまかもん 高槻店","category":"居酒屋・郷土料理","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"556m","walk":7,"days":"-","weekend":true,"menu":"大衆酒場","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市高槻町11-16","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":175,"name":"あまえんぼう グリーンプラザ店","category":"海鮮・串焼き・居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: - / ディナー: ¥3,000～¥3,999","station":"122m","walk":2,"days":"-","weekend":true,"menu":"JR高槻駅前のグリーンプラザ内","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市紺屋町3-1 B111","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":176,"name":"クラシック音楽BAR 華の音","category":"バー・カフェ","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ¥1,000～¥1,999","station":"259m","walk":4,"days":"水曜日","weekend":true,"menu":"クラシック音楽BAR、ネルドリップ珈琲","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市芥川町1-15-14 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.852362,"lon":135.616705,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町１丁目/"},{"id":177,"name":"鮮魚 喜楽 高槻城北通店","category":"寿司","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥3,000～¥3,999","station":"516m","walk":7,"days":"-","weekend":true,"menu":"鮮魚・寿司","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市城北町1-1-6","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":178,"name":"湊ビール 高槻リアン","category":"ビアバー","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000～¥2,999 / ディナー: -","station":"470m","walk":6,"days":"月曜日","weekend":true,"menu":"立ち飲み・クラフトビール・日本酒","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市城北町1-9-6","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":179,"name":"門亭","category":"焼き鳥・釜飯・水炊き","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"574m","walk":8,"days":"日曜日、祝日","weekend":true,"menu":"焼き鳥・釜飯・水炊き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"大阪府高槻市城北町2-14-6","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":180,"name":"セブンイレブン 高槻高槻町","category":"コンビニ・スーパー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"221m","walk":3,"days":"-","weekend":true,"menu":"コンビニ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/13/","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":181,"name":"高槻サンライズ カフェ","category":"カフェ","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"666m","walk":9,"days":"-","weekend":true,"menu":"モーニング・カフェ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/","sns":"","address":"大阪府高槻市城北町2-6-20 ペンタゴンビル 1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":182,"name":"麺家 高槻","category":"うどん・そば","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"71m","walk":1,"days":"-","weekend":true,"menu":"駅近のうどん・そば","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/","sns":"","address":"大阪府高槻市紺屋町1-3 NKビル1F JR高槻駅南","address_source":"https://map.yahoo.co.jp/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":183,"name":"つきの井","category":"日本料理・かに・鍋","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: ¥3,000～¥3,999","station":"134m","walk":2,"days":"-","weekend":true,"menu":"日本料理・かに・鍋","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/","sns":"","address":"大阪府高槻市紺屋町1-1 グリーンプラザ1号館 5F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":184,"name":"食堂 南風楽天","category":"東南アジア料理・食堂・カフェ","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000～¥1,999 / ディナー: -","station":"291m","walk":4,"days":"-","weekend":true,"menu":"東南アジア料理・食堂・カフェ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/","sns":"","address":"大阪府高槻市高槻町1-23 ネオ常磐1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":185,"name":"一発屋","category":"ラーメン・中華・餃子","photo":"🍽️","price":999,"price_str":"ランチ: ～¥999 / ディナー: ～¥999","station":"578m","walk":8,"days":"火曜日","weekend":true,"menu":"高槻老舗の博多長浜系","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/14/","sns":"","address":"大阪府高槻市城北町2-14-23","address_source":"https://map.yahoo.co.jp/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":186,"name":"旬釣処 舟屋","category":"海鮮・居酒屋","photo":"🍽️","price":3000,"price_str":"ランチ: - / ディナー: ¥3,000～¥3,999","station":"447m","walk":6,"days":"月曜日、日曜日","weekend":true,"menu":"イカ料理中心","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/","sns":"","address":"大阪府高槻市城北町1-3-26 並河ビル","address_source":"https://map.yahoo.co.jp/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":187,"name":"読書と旅と焼鳥と くま食堂","category":"バー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"587m","walk":8,"days":"-","weekend":true,"menu":"壺つくね・本好きが集う隠れ家","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/","sns":"","address":"大阪府高槻市城北町2-14-11 山田ビル 3F","address_source":"https://map.yahoo.co.jp/v3/place/0tzdtSySHGE","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":188,"name":"モリタ屋 北園店","category":"コンビニ・スーパー","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"440m","walk":6,"days":"-","weekend":true,"menu":"スーパー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/","sns":"","address":"大阪府高槻市北園町14-7","address_source":"https://www.city.takatsuki.osaka.jp/","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":189,"name":"ジャンボカラオケ広場 高槻3号店","category":"その他","photo":"🍽️","price":"","price_str":"ランチ: - / ディナー: -","station":"355m","walk":5,"days":"-","weekend":true,"menu":"カラオケ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/15/","sns":"","address":"大阪府高槻市高槻町18-5 銀雅ビル2・3F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":190,"name":"タンと海鮮 鉄板dining 雄輝","category":"居酒屋・海鮮","photo":"🍽️","price":4000,"price_str":"ランチ: ¥4,000〜¥4,999 / ディナー: -","station":"高槻駅 667m（高槻市駅130m）","walk":14,"days":"","weekend":true,"menu":"牛タン・海鮮の鉄板焼き、テラス席・宴会・貸切可","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/","sns":"","address":"大阪府高槻市城北町2-6-17 千町ビル 2F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":191,"name":"力丸 炉ばた焼 煉瓦 力丸亭","category":"居酒屋・焼き鳥・海鮮","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000〜¥2,999 / ディナー: -","station":"高槻駅 570m（高槻市駅44m）","walk":11,"days":"","weekend":true,"menu":"名物炉ばた焼き、鮮魚、食べ飲み放題","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/","sns":"","address":"大阪府高槻市城北町2-4-1","address_source":"https://www.rikimaru-group.com/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":192,"name":"焼き鳥と土鍋めし うっちゃり 高槻店","category":"居酒屋・焼き鳥・鍋","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000〜¥3,999 / ディナー: -","station":"高槻駅 569m（高槻市駅249m）","walk":11,"days":"","weekend":true,"menu":"焼き鳥と土鍋めし、2026年8月8日OPEN","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/","sns":"","address":"大阪府高槻市城北町1-2-10 東洋ビル2F","address_source":"https://www.utchari.com/","lat":34.847484,"lon":135.620107,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町１丁目/"},{"id":193,"name":"串焼き 炙","category":"焼き鳥・鍋・居酒屋","photo":"🍽️","price":2000,"price_str":"ランチ: ¥2,000〜¥2,999 / ディナー: -","station":"高槻駅 537m（高槻市駅51m）","walk":11,"days":"","weekend":true,"menu":"鹿児島産地鶏の串焼き、阪急高槻市駅徒歩1分","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/2/","sns":"","address":"大阪府高槻市北園町16-22","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":194,"name":"炭火焼鳥とおでん TORA鶏YA 高槻店","category":"居酒屋・焼き鳥・おでん","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000〜¥3,999 / ディナー: -","station":"高槻駅 618m（高槻市駅79m）","walk":12,"days":"","weekend":true,"menu":"豊後備長炭の地鶏炭火焼、餃子","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/","sns":"","address":"大阪府高槻市城北町2-3-8","address_source":"https://www.toratoriya.com/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":195,"name":"牛角 高槻店","category":"焼肉","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000〜¥3,999 / ディナー: -","station":"高槻駅 271m","walk":4,"days":"","weekend":true,"menu":"駅間の商店街沿い","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/","sns":"","address":"大阪府高槻市高槻町12-15 高槻センター街ビル2F","address_source":"https://www.gyukaku.ne.jp/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":196,"name":"ジャンボ酒場 阪急高槻市駅前店","category":"居酒屋・お好み焼き・たこ焼き","photo":"🍽️","price":1000,"price_str":"ランチ: ¥1,000〜¥1,999 / ディナー: 〜¥999","station":"高槻駅 539m（高槻市駅72m）","walk":11,"days":"","weekend":true,"menu":"ふわとろたこ焼き、3時間食べ飲み放題プラン","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/","sns":"","address":"大阪府高槻市城北町2-2-9","address_source":"https://map.yahoo.co.jp/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":197,"name":"がんこ 高槻店","category":"居酒屋・寿司・海鮮","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000〜¥3,999 / ディナー: ¥1,000〜¥1,999","station":"高槻駅 401m（高槻市駅149m）","walk":6,"days":"","weekend":true,"menu":"寿司、本クエ鍋コース","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/","sns":"","address":"大阪府高槻市北園町14-18","address_source":"https://map.yahoo.co.jp/","lat":34.851414,"lon":135.622503,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/北園町/"},{"id":198,"name":"はなきりん","category":"串焼き・居酒屋・焼き鳥","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000〜¥3,999 / ディナー: -","station":"高槻駅 637m（高槻市駅101m）","walk":13,"days":"","weekend":true,"menu":"個性豊かな炭火串焼き、貸切可能","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/","sns":"","address":"大阪府高槻市城北町2-11-17 ゼブラビル1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":199,"name":"上方ごちそう処 贔屓屋 高槻店","category":"居酒屋・海鮮・しゃぶしゃぶ","photo":"🍽️","price":3000,"price_str":"ランチ: ¥3,000〜¥3,999 / ディナー: ¥3,000〜¥3,999","station":"高槻駅 353m（高槻市駅201m）","walk":5,"days":"","weekend":true,"menu":"お造り、寿司、天ぷら","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/","sns":"","address":"大阪府高槻市高槻町10-12","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.851002,"lon":135.6204,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/高槻町/"},{"id":200,"name":"杵屋 高槻阪急店","category":"うどん・そば・居酒屋","photo":"🍽️","price":1000,"price_str":"ランチ: - / ディナー: ¥1,000〜¥1,999","station":"高槻駅 146m","walk":2,"days":"","weekend":true,"menu":"生醤油うどん、関西風出汁","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/4/","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://www.hankyu-dept.co.jp/takatsuki/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":201,"name":"炭火ダイニング 魚鬼","category":"ろばた焼き・海鮮","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 587m（高槻市駅129m）","walk":12,"days":"水曜日","weekend":true,"menu":"個室の口コミあり","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市城北町2-12-18 万里ビル1F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":202,"name":"ミチノリ","category":"バー・ビアバー","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 265m","walk":4,"days":"","weekend":true,"menu":"カラオケ、常連客が多い","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市芥川町2-8-20 深井ビル2F","address_source":"https://tabelog.com/osaka/A2706/A270604/","lat":34.852525,"lon":135.61434,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/芥川町２丁目/"},{"id":203,"name":"いとはん 阪急高槻店","category":"惣菜・デリ","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 195m","walk":3,"days":"","weekend":true,"menu":"惣菜・デリ","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急","address_source":"https://map.yahoo.co.jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":204,"name":"ユトリ 松坂屋高槻店","category":"惣菜・デリ","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: 〜¥999","station":"高槻駅 137m","walk":2,"days":"","weekend":true,"menu":"松坂屋高槻店","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店","address_source":"https://www.matsuzakaya.co.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":205,"name":"然の膳 大阪医科薬科大学店","category":"薬膳・食堂","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 764m（高槻市駅357m）","walk":16,"days":"","weekend":true,"menu":"日替わりランチ、ささみの香草焼き","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市奈佐原4-20-1","address_source":"https://map.yahoo.co.jp/","lat":34.864309,"lon":135.575823,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/奈佐原４丁目/"},{"id":206,"name":"小倉山荘 高槻阪急店","category":"和菓子・せんべい","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 226m","walk":3,"days":"","weekend":true,"menu":"","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市白梅町4-1 高槻阪急スクエア","address_source":"https://map.yahoo.co.jp/","lat":34.853632,"lon":135.619712,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/白梅町/"},{"id":207,"name":"ショット バー ブラスト","category":"バー・ダイニングバー","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 571m（高槻市駅187m）","walk":12,"days":"日曜日","weekend":true,"menu":"","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市城北町2-14-11","address_source":"https://map.yahoo.co.jp/","lat":34.849424,"lon":135.623758,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/城北町２丁目/"},{"id":208,"name":"ヨックモック 松坂屋高槻店","category":"洋菓子","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 136m","walk":2,"days":"","weekend":true,"menu":"","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店","address_source":"https://www.matsuzakaya.co.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":209,"name":"京利久","category":"その他","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 249m","walk":4,"days":"","weekend":true,"menu":"","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"住所未確認（Web検索で確証を取れず）","address_source":"未確認","lat":"","lon":"","coord_accuracy":"未取得（住所未確認）","coord_source":""},{"id":210,"name":"肉とワインJajaja DOS JR高槻店","category":"ダイニングバー・ステーキ","photo":"🍽️","price":6000,"price_str":"ランチ: ¥6,000〜¥7,999 / ディナー: ¥3,000〜¥3,999","station":"高槻駅 185m","walk":3,"days":"月曜日、火曜日","weekend":true,"menu":"肉とワイン、上質ディナー","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市上田辺町3-12 光栄ハイツ高槻2E","address_source":"https://tabelog.com/osaka/A2706/A270604/27120987/","lat":34.848929,"lon":135.616708,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/上田辺町/"},{"id":211,"name":"鹿鳴館 松坂屋高槻店","category":"ケーキ・チョコレート","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 137m","walk":2,"days":"","weekend":true,"menu":"","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店","address_source":"https://www.matsuzakaya.co.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":212,"name":"炉ばた焼つるや 本店","category":"ろばた焼き","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 84m","walk":2,"days":"","weekend":true,"menu":"","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市紺屋町3-1 グリーンプラザ高槻3号館 B115","address_source":"https://map.yahoo.co.jp/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":213,"name":"魚くみ 松坂屋高槻店","category":"鮮魚・寿司・惣菜","photo":"🍽️","price":0,"price_str":"ランチ: - / ディナー: -","station":"高槻駅 105m","walk":2,"days":"","weekend":true,"menu":"海鮮ちらし等","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市紺屋町2-1 松坂屋高槻店 B1F","address_source":"https://www.matsuzakaya.co.jp/takatsuki/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"},{"id":214,"name":"モスバーガー JR高槻駅南店","category":"ハンバーガー","photo":"🍽️","price":999,"price_str":"ランチ: 〜¥999 / ディナー: 〜¥999","station":"高槻駅 204m","walk":3,"days":"","weekend":true,"menu":"","hp":"https://tabelog.com/osaka/A2706/A270604/R5791/rstLst/10/","sns":"","address":"大阪府高槻市紺屋町7-12 寺本ビル1F","address_source":"https://www.mos.jp/","lat":34.849995,"lon":135.618588,"coord_accuracy":"町丁目代表点（住所から町丁目まで対応）","coord_source":"https://qchizu.jp/data/addresses/pages/大阪府/高槻市/紺屋町/"}];
+    
+    const itemsPerPage = 24;
+    let currentPage = 1;
+    let filteredShops = [...shops];
+
+    const grid = document.getElementById('shop-grid');
+    const filterCategory = document.getElementById('filter-category');
+    const filterPrice = document.getElementById('filter-price');
+    const sortType = document.getElementById('sort-type');
+    const searchText = document.getElementById('search-text');
+    const hitCount = document.getElementById('hit-count');
+    const pagination = document.getElementById('pagination');
+
+    // ===== カテゴリーの大分類 =====
+    // 細かい表記（例: お好み焼き/もんじゃ・お好み焼き/鉄板焼き）を
+    // サイト上では1つの大分類にまとめます。
+    const CATEGORY_RULES = [
+        ['お好み焼き', ['お好み焼き']],
+        ['焼肉', ['焼肉']],
+        ['居酒屋', ['居酒屋']],
+        ['焼き鳥', ['焼き鳥']],
+        ['串揚げ・串カツ', ['串揚げ', '串カツ', '串焼き']],
+        ['寿司', ['寿司', '鮨']],
+        ['海鮮・魚料理', ['海鮮', '鮮魚', '魚料理', '魚介']],
+        ['イタリアン', ['イタリアン', 'パスタ', 'ピザ']],
+        ['フレンチ', ['フレンチ']],
+        ['中華', ['中華', '四川', '火鍋']],
+        ['韓国料理', ['韓国料理']],
+        ['タイ料理', ['タイ料理']],
+        ['インド料理・カレー', ['インド料理', 'カレー']],
+        ['ラーメン', ['ラーメン']],
+        ['うどん', ['うどん']],
+        ['そば', ['そば', '蕎麦']],
+        ['餃子', ['餃子']],
+        ['とんかつ', ['とんかつ']],
+        ['うなぎ', ['うなぎ', '鰻']],
+        ['ステーキ', ['ステーキ']],
+        ['ハンバーガー', ['ハンバーガー']],
+        ['カフェ', ['カフェ']],
+        ['バー', ['バー', 'ビアバー', 'ダイニングバー']],
+        ['バル', ['バル', '肉バル']],
+        ['スイーツ・洋菓子', ['洋菓子', 'ケーキ', 'スイーツ', 'チョコレート']],
+        ['和菓子', ['和菓子', 'せんべい']],
+        ['日本料理・和食', ['日本料理', '和食', '懐石', '割烹']],
+        ['食堂・定食', ['食堂', '定食']],
+        ['鍋・もつ鍋', ['鍋', 'もつ鍋']],
+        ['パン・ベーカリー', ['パン', 'ベーカリー']],
+        ['その他', []]
+    ];
+
+    function getCategoryGroup(shop) {
+        const categoryText = String(shop.category || '').trim();
+        if (!categoryText || categoryText === '-' || categoryText === 'None') return 'その他';
+
+        for (const [group, keywords] of CATEGORY_RULES) {
+            if (group === 'その他') continue;
+            if (keywords.some(keyword => categoryText.includes(keyword))) return group;
+        }
+        return 'その他';
+    }
+
+    function populateCategoryGroups() {
+        filterCategory.innerHTML = '<option value="all">すべて</option>';
+        const groups = new Set(shops.map(getCategoryGroup));
+        const ordered = CATEGORY_RULES.map(([group]) => group).filter(group => groups.has(group));
+        ordered.forEach(group => {
+            const option = document.createElement('option');
+            option.value = group;
+            option.textContent = group;
+            filterCategory.appendChild(option);
+        });
+    }
+
+    function getCoordTextForCard(shop){
+        const has=Number.isFinite(Number(shop.lat))&&Number.isFinite(Number(shop.lon));
+        return has?`<div class="coord-note">📍 座標登録済み（${htmlEscape(shop.coord_accuracy||'精度未記載')}）</div>`:'<div class="coord-note">📍 座標未取得</div>';
+    }
+
+    function renderShops() {
+        // 1. 絞り込み（フィルターと検索）
+        const keyword = searchText.value.toLowerCase();
+        
+        filteredShops = shops.filter(shop => {
+            // キーワード検索
+            const matchKeyword = keyword === '' || 
+                (shop.name && shop.name.toLowerCase().includes(keyword)) || 
+                (shop.menu && shop.menu.toLowerCase().includes(keyword)) ||
+                (shop.category && shop.category.toLowerCase().includes(keyword));
+            
+            // カテゴリ
+            const matchCategory = filterCategory.value === 'all' ||
+                getCategoryGroup(shop) === filterCategory.value;
+            
+            // 価格
+            let matchPrice = true;
+            const price = parseFloat(shop.price);
+            if (filterPrice.value === 'under2000') {
+                matchPrice = !isNaN(price) && price < 2000;
+            } else if (filterPrice.value === '2000to5000') {
+                matchPrice = !isNaN(price) && price >= 2000 && price < 5000;
+            } else if (filterPrice.value === 'over5000') {
+                matchPrice = !isNaN(price) && price >= 5000;
+            }
+            
+            return matchKeyword && matchCategory && matchPrice;
+        });
+
+        // 2. 並び替え（ソート）
+        const sortVal = sortType.value;
+        if (sortVal === 'price-asc') {
+            filteredShops.sort((a, b) => {
+                let pa = isNaN(parseFloat(a.price)) ? Infinity : parseFloat(a.price);
+                let pb = isNaN(parseFloat(b.price)) ? Infinity : parseFloat(b.price);
+                return pa - pb;
+            });
+        } else if (sortVal === 'price-desc') {
+            filteredShops.sort((a, b) => {
+                let pa = isNaN(parseFloat(a.price)) ? 0 : parseFloat(a.price);
+                let pb = isNaN(parseFloat(b.price)) ? 0 : parseFloat(b.price);
+                return pb - pa;
+            });
+        } else if (sortVal === 'walk-asc') {
+            filteredShops.sort((a, b) => {
+                let wa = isNaN(parseFloat(a.walk)) ? Infinity : parseFloat(a.walk);
+                let wb = isNaN(parseFloat(b.walk)) ? Infinity : parseFloat(b.walk);
+                return wa - wb;
+            });
+        } else {
+            filteredShops.sort((a, b) => a.id - b.id);
+        }
+
+        // 全件数更新
+        hitCount.textContent = `全 ${filteredShops.length} 件 (ページ ${currentPage} / ${Math.ceil(filteredShops.length / itemsPerPage) || 1})`;
+
+        // ページネーションの生成
+        renderPagination();
+
+        // 3. 表示用のスライスを取得してHTML生成
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const shopsToDisplay = filteredShops.slice(startIndex, endIndex);
+
+        grid.innerHTML = '';
+        if (shopsToDisplay.length === 0) {
+            grid.innerHTML = '<div class="no-results">条件に一致するお店が見つかりませんでした。</div>';
+            return;
+        }
+
+        shopsToDisplay.forEach(shop => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            // tblgリンクの処理
+            let hpLinkHtml = `<a href="${shop.hp}" target="_blank" class="hp">食べログ</a>`;
+            if (!shop.hp || shop.hp === '#' || shop.hp === 'None') {
+                hpLinkHtml = `<a href="#" class="hp disabled" onclick="return false;">リンクなし</a>`;
+            }
+            
+            let priceText = isNaN(parseFloat(shop.price)) ? "-" : `約${parseFloat(shop.price).toLocaleString()}円〜`;
+            let walkText = isNaN(parseFloat(shop.walk)) ? "-" : `${shop.walk}分`;
+            
+            let cat = shop.category && shop.category !== 'None' ? shop.category : 'ジャンル不明';
+            const catGroup = getCategoryGroup(shop);
+            card.dataset.categoryGroup = catGroup;
+
+            card.innerHTML = `
+                <div class="photo">${shop.photo}</div>
+                <div class="info">
+                    <span class="category">${catGroup}</span>
+                    <div style="font-size:.72rem;color:#777;margin:-4px 0 8px;">${cat}</div>
+                    <h2 class="name">${shop.name}</h2>
+                    
+                    <div class="detail-row">
+                        <span class="detail-label">📍 アクセス</span>
+                        <span>${shop.station} (${walkText})</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">💰 予算(目安)</span>
+                        <span class="price">${priceText}</span>
+                    </div>
+                    <div class="detail-row" style="flex-direction: column;">
+                        <span class="detail-label">価格詳細</span>
+                        <span class="price" style="text-align: left; font-weight:normal; margin-top:3px;">${shop.price_str}</span>
+                    </div>
+                    
+                    <div class="address-row">
+                        <strong>🏠 住所</strong><br>
+                        ${shop.address ? htmlEscape(shop.address) : '住所未登録'}
+                        ${getCoordTextForCard(shop)}
+                    </div>
+                    <div class="menu">
+                        <strong>🍴 メニュー・特徴</strong><br>
+                        ${shop.menu}
+                    </div>
+                    
+                    <div class="links">
+                        ${hpLinkHtml}
+                        <button class="map-btn" data-shop-id="${shop.id}" type="button">📍 地図で見る</button>
+                    </div>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+    
+    function renderPagination() {
+        pagination.innerHTML = '';
+        const totalPages = Math.ceil(filteredShops.length / itemsPerPage);
+        
+        if (totalPages <= 1) return;
+
+        // 前へボタン
+        const prevBtn = document.createElement('button');
+        prevBtn.textContent = '◀';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => {
+            currentPage--;
+            renderShops();
+            window.scrollTo(0, 0);
+        };
+        pagination.appendChild(prevBtn);
+
+        // ページ番号 (最大5個表示)
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            const btn = document.createElement('button');
+            btn.textContent = i;
+            if (i === currentPage) btn.className = 'active';
+            btn.onclick = () => {
+                currentPage = i;
+                renderShops();
+                window.scrollTo(0, 0);
+            };
+            pagination.appendChild(btn);
+        }
+
+        // 次へボタン
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = '▶';
+        nextBtn.disabled = currentPage === totalPages;
+        nextBtn.onclick = () => {
+            currentPage++;
+            renderShops();
+            window.scrollTo(0, 0);
+        };
+        pagination.appendChild(nextBtn);
+    }
+
+
+    // ===== 現在地・サイト内地図機能 =====
+    let map = null;
+    let userMarker = null;
+    let shopMarker = null;
+    let currentPosition = null;
+    let currentShop = null;
+    let mapResizeObserver = null;
+
+    const getLocationBtn = document.getElementById('get-location-btn');
+    const clearMapBtn = document.getElementById('clear-map-btn');
+    const showAllBtn = document.getElementById('show-all-btn');
+    const locationStatus = document.getElementById('location-status');
+    const mapWrap = document.getElementById('map-wrap');
+    const mapSummary = document.getElementById('map-summary');
+    const mapCloseX = document.getElementById('map-close-x');
+
+    function invalidateMapSoon() {
+        if (!map) return;
+        [50, 150, 350, 700].forEach(ms => {
+            setTimeout(() => {
+                if (map) map.invalidateSize({ pan: false, animate: false });
+            }, ms);
+        });
+    }
+
+    function ensureMap() {
+        if (map) {
+            invalidateMapSoon();
+            return;
+        }
+        if (typeof L === 'undefined') {
+            locationStatus.textContent = '地図ライブラリの読み込みに失敗しました。ページを再読み込みしてください。';
+            return;
+        }
+
+        const mapEl = document.getElementById('map');
+        map = L.map(mapEl, {
+            zoomControl: true,
+            attributionControl: true,
+            fadeAnimation: false,
+            zoomAnimation: false,
+            markerZoomAnimation: false
+        }).setView([34.846, 135.617], 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 表示/サイズ変更後にLeafletへ実サイズを再通知
+        if (window.ResizeObserver) {
+            mapResizeObserver = new ResizeObserver(() => invalidateMapSoon());
+            mapResizeObserver.observe(mapEl);
+        }
+        window.addEventListener('resize', invalidateMapSoon);
+
+        invalidateMapSoon();
+    }
+
+    function formatDistance(meters) {
+        if (!Number.isFinite(meters)) return '-';
+        if (meters < 1000) return `${Math.round(meters)} m`;
+        return `${(meters / 1000).toFixed(2)} km`;
+    }
+
+    function distanceMeters(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const p1 = lat1 * Math.PI / 180;
+        const p2 = lat2 * Math.PI / 180;
+        const dp = (lat2 - lat1) * Math.PI / 180;
+        const dl = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dp/2)**2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2)**2;
+        return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function htmlEscape(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({
+            '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+        }[ch]));
+    }
+
+    function googleMapsUrl(shop, lat, lon) {
+        const destination = encodeURIComponent(`${shop.name} 高槻市 大阪府 日本`);
+        const origin = Number.isFinite(lat) && Number.isFinite(lon)
+            ? `&origin=${lat},${lon}` : '';
+        return `https://www.google.com/maps/dir/?api=1&destination=${destination}${origin}`;
+    }
+
+    function getShopPosition(shop) {
+        return Number.isFinite(Number(shop.lat)) && Number.isFinite(Number(shop.lon))
+            ? {lat:Number(shop.lat),lon:Number(shop.lon)} : null;
+    }
+
+    function sameCoordinateShops(shop) {
+        const p=getShopPosition(shop);
+        if(!p) return [];
+        return shops.filter(s=>{
+            const q=getShopPosition(s);
+            return q && Math.abs(q.lat-p.lat)<1e-9 && Math.abs(q.lon-p.lon)<1e-9;
+        });
+    }
+
+    function showAllShopMarkers() {
+        if(!map) return;
+        if(window.shopMarkersLayer) map.removeLayer(window.shopMarkersLayer);
+        window.shopMarkersLayer=L.layerGroup().addTo(map);
+        const grouped=new Map();
+        shops.forEach(s=>{
+            const p=getShopPosition(s); if(!p)return;
+            const k=`${p.lat},${p.lon}`;
+            if(!grouped.has(k))grouped.set(k,[]);
+            grouped.get(k).push(s);
+        });
+        grouped.forEach((group,key)=>{
+            const [lat,lon]=key.split(',').map(Number);
+            const marker=L.marker([lat,lon],{title:group.length===1?group[0].name:`${group.length}店舗`});
+            let body=group.map(s=>`<div style="margin-bottom:8px;"><strong>${htmlEscape(s.name)}</strong><br>${s.address?`🏠 ${htmlEscape(s.address)}<br>`:''}<button type="button" class="popup-shop-button" data-shop-id="${s.id}" style="margin-top:4px;border:0;background:#ff9d00;color:#fff;padding:5px 8px;border-radius:4px;cursor:pointer;">この店を見る</button></div>`).join('');
+            if(group.length>1) body=`<strong>📍 ${group.length}店舗</strong><hr style="border:none;border-top:1px solid #ddd;">${body}`;
+            marker.bindPopup(body).addTo(window.shopMarkersLayer);
+        });
+    }
+
+    function showUserMarker() {
+        if(!map||!currentPosition)return;
+        const {latitude,longitude}=currentPosition;
+        if(userMarker) map.removeLayer(userMarker);
+        userMarker=L.circleMarker([latitude,longitude],{
+            radius:9,color:'#1976d2',fillColor:'#2196f3',fillOpacity:.9,weight:3
+        }).addTo(map).bindPopup('📍 あなたの現在地');
+    }
+
+    function showShopOnMap(shop) {
+        currentShop=shop;
+        mapWrap.style.display='block';
+        ensureMap();
+        invalidateMapSoon();
+        showAllShopMarkers();
+
+        const p=getShopPosition(shop);
+        if(!p){
+            locationStatus.textContent=`「${shop.name}」には緯度・経度が登録されていません。`;
+            mapSummary.innerHTML=`<strong>🍽️ ${htmlEscape(shop.name)}</strong><br>${shop.address?`🏠 ${htmlEscape(shop.address)}<br>`:''}<span style="color:#b45309;">この店舗には座標データがありません。</span><br><a href="${googleMapsUrl(shop,currentPosition?.latitude,currentPosition?.longitude)}" target="_blank" rel="noopener noreferrer">Google Mapsで「${htmlEscape(shop.name)}」を開く →</a>`;
+            if(currentPosition) map.setView([currentPosition.latitude,currentPosition.longitude],15);
+            else map.setView([34.850,135.620],15);
+            return;
+        }
+
+        if(shopMarker) map.removeLayer(shopMarker);
+        const grouped=sameCoordinateShops(shop);
+        shopMarker=L.marker([p.lat,p.lon],{zIndexOffset:1000,title:shop.name}).addTo(map)
+            .bindPopup(`<strong>${htmlEscape(shop.name)}</strong><br>${shop.address?`🏠 ${htmlEscape(shop.address)}<br>`:''}${grouped.length>1?`<span style="color:#666;">この座標には${grouped.length}店舗のデータがあります。</span>`:''}`)
+            .openPopup();
+
+        showUserMarker();
+
+        let distanceText='現在地を取得すると距離を表示できます。';
+        if(currentPosition){
+            const meters=distanceMeters(currentPosition.latitude,currentPosition.longitude,p.lat,p.lon);
+            distanceText=`現在地からの直線距離：約 <strong>${formatDistance(meters)}</strong>`;
+            map.fitBounds(L.latLngBounds([currentPosition.latitude,currentPosition.longitude],[p.lat,p.lon]),{padding:[40,40],maxZoom:17});
+        } else {
+            map.setView([p.lat,p.lon],17);
+        }
+
+        mapSummary.innerHTML=`<strong>🍽️ ${htmlEscape(shop.name)}</strong><br>${shop.address?`🏠 ${htmlEscape(shop.address)}<br>`:''}${distanceText}<br><small>座標精度：${htmlEscape(shop.coord_accuracy||'未記載')}</small><br><a href="${googleMapsUrl(shop,currentPosition?.latitude,currentPosition?.longitude)}" target="_blank" rel="noopener noreferrer">Google Mapsでルートを見る →</a>`;
+        locationStatus.textContent=`「${shop.name}」を登録済みの座標で地図に表示しました。`;
+        invalidateMapSoon();
+        mapWrap.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+
+    function getCurrentLocation() {
+        if (!navigator.geolocation) {
+            locationStatus.textContent = 'このブラウザでは現在地取得に対応していません。';
+            return;
+        }
+        locationStatus.textContent = '現在地を取得しています…';
+
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                currentPosition = position.coords;
+                mapWrap.style.display = 'block';
+                ensureMap();
+                invalidateMapSoon();
+                showUserMarker();
+
+                map.setView([currentPosition.latitude, currentPosition.longitude], 16);
+                locationStatus.textContent =
+                    '現在地を取得しました。店舗カードの「📍 地図で見る」から店舗との位置関係を表示できます。';
+
+                if (currentShop) showShopOnMap(currentShop);
+            },
+            error => {
+                let msg = '現在地を取得できませんでした。';
+                if (error.code === error.PERMISSION_DENIED) msg += ' ブラウザの位置情報許可を確認してください。';
+                if (error.code === error.TIMEOUT) msg += ' 取得がタイムアウトしました。';
+                locationStatus.textContent = msg;
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        );
+    }
+
+    getLocationBtn.addEventListener('click', getCurrentLocation);
+
+    showAllBtn.addEventListener('click', () => {
+        mapWrap.style.display='block';
+        ensureMap();
+        showAllShopMarkers();
+        showUserMarker();
+        const coords=shops.map(getShopPosition).filter(Boolean);
+        if(coords.length){
+            const b=L.latLngBounds(coords.map(p=>[p.lat,p.lon]));
+            if(currentPosition)b.extend([currentPosition.latitude,currentPosition.longitude]);
+            map.fitBounds(b,{padding:[30,30],maxZoom:16});
+        }
+        locationStatus.textContent=`座標登録済みの ${coords.length} 店舗を地図に表示しました。`;
+        mapSummary.innerHTML=`<strong>🗺️ 座標登録済み店舗</strong><br>${coords.length}店舗を表示しています。マーカーをタップすると店舗名・住所を確認できます。`;
+        invalidateMapSoon();
+        mapWrap.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+
+    function closeMapPanel() {
+        mapWrap.style.display = 'none';
+        currentShop = null;
+        if (shopMarker && map) {
+            map.removeLayer(shopMarker);
+            shopMarker = null;
+        }
+        locationStatus.textContent =
+            '現在地を取得すると、選択した店舗との位置関係・直線距離を地図で確認できます。';
+    }
+
+    clearMapBtn.addEventListener('click', closeMapPanel);
+    mapCloseX.addEventListener('click', closeMapPanel);
+
+    grid.addEventListener('click', event => {
+        const btn = event.target.closest('.map-btn');
+        if (!btn) return;
+        const shopId = Number(btn.dataset.shopId);
+        const shop = shops.find(s => Number(s.id) === shopId);
+        if (!shop) return;
+        showShopOnMap(shop);
+    });
+
+    document.addEventListener('click', event => {
+        const btn=event.target.closest('.popup-shop-button');
+        if(!btn)return;
+        const shop=shops.find(s=>Number(s.id)===Number(btn.dataset.shopId));
+        if(shop)showShopOnMap(shop);
+    });
+
+    // イベントリスナー
+    filterCategory.addEventListener('change', () => { currentPage = 1; renderShops(); });
+    filterPrice.addEventListener('change', () => { currentPage = 1; renderShops(); });
+    sortType.addEventListener('change', () => { currentPage = 1; renderShops(); });
+    searchText.addEventListener('input', () => { currentPage = 1; renderShops(); });
+
+    // 初期化
+    populateCategoryGroups();
+    renderShops();
+</script>
+
+</body>
+</html>
