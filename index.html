@@ -522,7 +522,7 @@
             // snsリンクの処理
             let snsLinkHtml = `<a href="${shop.sns}" target="_blank" class="sns">HP/SNS</a>`;
             if (!shop.sns || shop.sns === '#' || shop.sns === 'None') {
-                snsLinkHtml = `<a href="#" class="sns disabled" onclick="return false;">HP未登録</a>`;
+                snsLinkHtml = ``;
             }
             
             // tblgリンクの処理
